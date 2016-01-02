@@ -1,0 +1,185 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<title>Audio Gain Visualizer</title>
+	</head>
+
+	<body>
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r73/three.js"></script>
+
+		<script type="text/javascript" src="js/CanvasRenderer.js"></script>
+		<script type="text/javascript" src="js/Projector.js"></script>
+		<script type="text/javascript" src="js/stats.min.js"></script>
+		<script type="text/javascript">
+
+/////////////////////////////////////////////////////////////////
+// WebAudioAPI functions
+/////////////////////////////////////////////////////////////////
+
+//毎音声処理
+function onAudioProcess(e) {
+    // 音声データを取得
+    var input = e.inputBuffer.getChannelData(0);
+ 
+	// 振幅を取得
+	var max_gain = Math.max.apply(null, input);
+	var min_gain = Math.min.apply(null, input);
+	var gainDiff = (max_gain - min_gain) * Math.abs(OFFSET_Y);
+
+	gainList.shift();
+	gainList.push(gainDiff);
+}
+
+
+// 音声処理開始
+function initializeAudio() {
+
+    navigator.getUserMedia(
+        {audio: true },
+        function (stream) {
+            var javascriptnode = audioContext.createScriptProcessor(bufferSize, 1, 1);  
+            var mediastreamsource = audioContext.createMediaStreamSource(stream);
+            mediastreamsource.connect(javascriptnode);
+            javascriptnode.onaudioprocess = onAudioProcess;
+            javascriptnode.connect(audioContext.destination);
+        },
+		function (e) {
+            console.log(e);
+        });
+}
+
+/////////////////////////////////////////////////////////////////
+// rendering function
+/////////////////////////////////////////////////////////////////
+
+
+function animate() {
+	requestAnimationFrame( animate );
+
+	render();
+	stats.update();
+
+}
+
+// 毎描画の処理
+function render() {
+	for(var i=0;i<AMOUNT;i++){
+		particles[i].position.y = gainList[i] + OFFSET_Y;
+	}
+	
+    renderer.render(scene, camera);
+	FRAME_COUNT++;
+}
+
+
+// Meshの初期化
+function initializeMesh(){
+	var fov = 75;
+	var aspect = window.innerWidth / window.innerHeight;
+	var near = 1;
+	var far = 1000;
+
+	camera = new THREE.PerspectiveCamera( fov, aspect, near, far );
+	camera.position.z = 100;
+
+	scene = new THREE.Scene();
+
+	///////////////////
+	// create mesh
+	///////////////////
+	particles = new Array();
+
+	var PI2 = Math.PI * 2;
+	var material = new THREE.SpriteCanvasMaterial({
+		color: 0xffffff,
+		program: function ( context ) {
+
+			context.beginPath();
+			context.arc( 0, 0, 0.5, 0, PI2, true );
+			context.fill();
+
+		}
+	});
+
+	for(var i=0;i<AMOUNT;i++){
+		particle = particles[i] = new THREE.Sprite(material);
+		particle.position.x = i * SEPARATION - (AMOUNT * SEPARATION / 2.0);
+		particle.position.y = 0 + OFFSET_Y;
+		scene.add(particle);
+	}
+
+
+	///////////////////
+	// initialize stats
+	///////////////////
+	stats = new Stats();
+	stats.domElement.style.position = 'absolute';
+	stats.domElement.style.top = '0px';
+	document.body.appendChild( stats.domElement );
+	
+
+	///////////////////
+	// initialize render
+	///////////////////
+	renderer = new THREE.CanvasRenderer();
+	renderer.setPixelRatio( window.devicePixelRatio );
+	// renderer = new THREE.WebGLRenderer();
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	document.body.appendChild( renderer.domElement );
+}
+
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+
+	renderer.setSize( window.innerWidth, window.innerHeight );
+}
+
+
+/////////////////////////////////////////////////////////////////
+// initialize parameters
+/////////////////////////////////////////////////////////////////
+
+////////////////////////////////////
+// initialize WebGL
+////////////////////////////////////
+
+var camera, scene, renderer;
+var particles, particle;
+
+var AMOUNT = 200;
+var SEPARATION = 2;
+var OFFSET_Y = -50;
+
+var FRAME_COUNT = 0;
+
+////////////////////////////////////
+// WebAudioAPI
+////////////////////////////////////
+navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext || window.msAudioContext;
+
+var audioContext = new AudioContext();
+var sampleRate = audioContext.sampleRate;
+var bufferSize = 256;
+
+var gainList = new Array(AMOUNT);
+
+
+/////////////////////////////////////////////////////////////////
+// Entry point
+/////////////////////////////////////////////////////////////////
+// 音声処理開始
+initializeAudio();
+initializeMesh();
+
+// rendering 
+animate();
+
+window.addEventListener( 'resize', onWindowResize, false );
+
+		</script>
+	</body>
+</html>
